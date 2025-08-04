@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Package Tracker</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <h2>Package Tracker</h2>
+
+    <form id="tracker-form">
+      <input
+        type="text"
+        id="tracking-number"
+        placeholder="Tracking number"
+        required
+      />
+      <input
+        type="text"
+        id="carrier"
+        placeholder="Carrier (e.g., UPS)"
+        required
+      />
+      <button type="submit">Add Package</button>
+    </form>
+
+    <ul id="package-list"></ul>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
