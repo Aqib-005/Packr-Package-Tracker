@@ -14,17 +14,19 @@
         placeholder="Tracking number"
         required
       />
-      <input
-        type="text"
-        id="carrier"
-        placeholder="Carrier (e.g., UPS)"
-        required
-      />
+      <select id="carrier" required>
+        <option value="" disabled selected>Select carrier</option>
+        <option value="usps">USPS</option>
+        <option value="fedex">FedEx</option>
+        <option value="ups">UPS</option>
+        <option value="dhl">DHL</option>
+      </select>
       <button type="submit">Add Package</button>
     </form>
 
     <ul id="package-list"></ul>
 
+    <script src="config.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

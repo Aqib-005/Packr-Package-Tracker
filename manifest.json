@@ -4,6 +4,7 @@
   "version": "1.0",
   "description": "Track your packages and cache them locally.",
   "permissions": ["storage"],
+  "host_permissions": ["https://api.trackingmore.com/*"],
   "action": {
     "default_popup": "index.html",
     "default_icon": {
