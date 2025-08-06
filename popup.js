@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("tracker-form");
   const list = document.getElementById("package-list");
+  const carrierSelect = document.getElementById("carrier");
 
   // Load stored packages
   chrome.storage.local.get(["packages"], (result) => {
@@ -11,75 +12,103 @@ document.addEventListener("DOMContentLoaded", () => {
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const number = document.getElementById("tracking-number").value.trim();
-    const carrier = document.getElementById("carrier").value.trim();
+    const carrier = carrierSelect.value.trim();
 
     if (!number || !carrier) {
       alert("Please enter a tracking number and select a carrier.");
       return;
     }
 
+    console.log(
+      "Submitting tracking number:",
+      number,
+      "with courier:",
+      carrier,
+    ); // Debug input
     const apiKey = TRACK_KEY;
+    console.log("Using API key:", apiKey); // Debug API key
 
-    // Try to create tracking (ignore if already exists)
-    let createRes = await fetch(
-      "https://api.trackingmore.com/v4/trackings/create",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Tracking-Api-Key": apiKey,
+    // Step 1: Create tracking
+    try {
+      let createRes = await fetch(
+        "https://api.trackingmore.com/v4/trackings/create",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Tracking-Api-Key": apiKey,
+          },
+          body: JSON.stringify({
+            tracking_number: number,
+            courier_code: carrier,
+          }),
         },
-        body: JSON.stringify({
-          tracking_number: number,
-          carrier_code: carrier,
-        }),
-      },
-    );
+      );
 
-    if (!createRes.ok) {
-      const errText = await createRes.text();
-      console.warn("Create failed:", errText);
-
-      if (!errText.toLowerCase().includes("already exists")) {
-        alert("Error creating tracking: " + errText);
-        return;
+      if (!createRes.ok) {
+        const errJson = await createRes.json();
+        console.warn("Create failed:", JSON.stringify(errJson, null, 2));
+        if (errJson?.meta?.code !== 4101) {
+          alert("Error creating tracking: " + JSON.stringify(errJson, null, 2));
+          return;
+        }
       }
+    } catch (err) {
+      console.error("Network error creating tracking:", err);
+      alert("Network error creating tracking.");
+      return;
     }
 
-    // Get tracking info
-    const res = await fetch(
-      `https://api.trackingmore.com/v4/trackings/get?tracking_number=${number}&carrier_code=${carrier}`,
-      {
-        method: "GET",
-        headers: {
-          "Tracking-Api-Key": apiKey,
+    // Step 2: Get tracking info
+    try {
+      const res = await fetch(
+        `https://api.trackingmore.com/v4/trackings/get?tracking_numbers=${number}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Tracking-Api-Key": apiKey,
+          },
         },
-      },
-    );
+      );
 
-    const data = await res.json();
-    const trackingData = data?.data?.items?.[0] || {};
+      if (!res.ok) {
+        const errJson = await res.json();
+        console.warn("Get tracking failed:", JSON.stringify(errJson, null, 2));
+        alert(
+          "Error fetching tracking info: " + JSON.stringify(errJson, null, 2),
+        );
+        return;
+      }
 
-    const newPackage = {
-      id: Date.now(),
-      trackingNumber: number,
-      carrier: carrier,
-      status: trackingData.status || "Unknown",
-      eta: trackingData.expected_delivery || "N/A",
-      lastUpdate: trackingData.lastUpdateTime || "N/A",
-      lastLocation: trackingData.lastLocation || "N/A",
-      addedAt: new Date().toISOString(),
-    };
+      const data = await res.json();
+      console.log("Tracking response:", JSON.stringify(data, null, 2));
 
-    // Save and render package
-    chrome.storage.local.get(["packages"], (result) => {
-      const packages = result.packages || [];
-      packages.push(newPackage);
-      chrome.storage.local.set({ packages }, () => {
-        renderPackage(newPackage);
-        form.reset();
+      const trackingData = data?.data?.[0] || {};
+      const newPackage = {
+        id: Date.now(),
+        trackingNumber: number,
+        carrier: carrier,
+        status: trackingData.delivery_status || "Unknown",
+        eta: trackingData.scheduled_delivery_date || "N/A",
+        lastUpdate: trackingData.latest_checkpoint_time || "N/A",
+        lastLocation: trackingData.latest_event || "N/A",
+        addedAt: new Date().toISOString(),
+      };
+
+      // Save and render package
+      chrome.storage.local.get(["packages"], (result) => {
+        const packages = result.packages || [];
+        packages.push(newPackage);
+        chrome.storage.local.set({ packages }, () => {
+          renderPackage(newPackage);
+          form.reset();
+        });
       });
-    });
+    } catch (err) {
+      console.error("Network error fetching tracking:", err);
+      alert("Network error fetching tracking info.");
+    }
   });
 
   function renderPackage(pkg) {
@@ -96,7 +125,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.textContent = "Delete";
-
     btn.addEventListener("click", () => {
       deletePackage(pkg.id, li);
     });
