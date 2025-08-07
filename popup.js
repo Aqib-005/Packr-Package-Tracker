@@ -2,10 +2,47 @@ document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("tracker-form");
   const list = document.getElementById("package-list");
   const carrierSelect = document.getElementById("carrier");
+  const apiKey = TRACK_KEY;
 
-  chrome.storage.local.get(["packages"], (result) => {
+  chrome.storage.local.get(["packages"], async (result) => {
     const packages = result.packages || [];
-    packages.forEach(renderPackage);
+
+    const refreshedPackages = await Promise.all(
+      packages.map(async (pkg) => {
+        try {
+          const res = await fetch(
+            `https://api.trackingmore.com/v4/trackings/get?tracking_numbers=${pkg.trackingNumber}`,
+            {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                "Tracking-Api-Key": apiKey,
+              },
+            },
+          );
+
+          if (!res.ok) throw new Error("Tracking fetch failed");
+
+          const data = await res.json();
+          const trackingData = data?.data?.[0] || {};
+
+          return {
+            ...pkg,
+            status: trackingData.delivery_status || "Unknown",
+            eta: trackingData.scheduled_delivery_date || "N/A",
+            lastUpdate: trackingData.latest_checkpoint_time || "N/A",
+            lastLocation: trackingData.latest_event || "N/A",
+          };
+        } catch (err) {
+          console.warn("Error refreshing tracking:", err);
+          return pkg;
+        }
+      }),
+    );
+
+    chrome.storage.local.set({ packages: refreshedPackages }, () => {
+      refreshedPackages.forEach(renderPackage);
+    });
   });
 
   form.addEventListener("submit", async (e) => {
@@ -24,8 +61,6 @@ document.addEventListener("DOMContentLoaded", () => {
       "with courier:",
       carrier,
     );
-    const apiKey = TRACK_KEY;
-    console.log("Using API key:", apiKey); // Debug API key
 
     try {
       let createRes = await fetch(
@@ -79,9 +114,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const data = await res.json();
-      console.log("Tracking response:", JSON.stringify(data, null, 2));
-
       const trackingData = data?.data?.[0] || {};
+
       const newPackage = {
         id: Date.now(),
         trackingNumber: number,
@@ -93,7 +127,6 @@ document.addEventListener("DOMContentLoaded", () => {
         addedAt: new Date().toISOString(),
       };
 
-      // Save and render package
       chrome.storage.local.get(["packages"], (result) => {
         const packages = result.packages || [];
         packages.push(newPackage);
