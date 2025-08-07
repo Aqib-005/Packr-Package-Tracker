@@ -3,7 +3,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const list = document.getElementById("package-list");
   const carrierSelect = document.getElementById("carrier");
 
-  // Load stored packages
   chrome.storage.local.get(["packages"], (result) => {
     const packages = result.packages || [];
     packages.forEach(renderPackage);
@@ -24,11 +23,10 @@ document.addEventListener("DOMContentLoaded", () => {
       number,
       "with courier:",
       carrier,
-    ); // Debug input
+    );
     const apiKey = TRACK_KEY;
     console.log("Using API key:", apiKey); // Debug API key
 
-    // Step 1: Create tracking
     try {
       let createRes = await fetch(
         "https://api.trackingmore.com/v4/trackings/create",
@@ -59,7 +57,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Step 2: Get tracking info
     try {
       const res = await fetch(
         `https://api.trackingmore.com/v4/trackings/get?tracking_numbers=${number}`,
